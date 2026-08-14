@@ -1,0 +1,33 @@
+name: Validate PostgreSQL schema
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  schema-smoke-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.4-alpine
+        env:
+          POSTGRES_DB: ecoresist
+          POSTGRES_USER: ecoresist
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecoresist -d ecoresist"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply migration
+        run: psql -h 127.0.0.1 -U ecoresist -d ecoresist -v ON_ERROR_STOP=1 -f migrations/V1__initial_game_schema.sql
+      - name: Load reference seed
+        run: psql -h 127.0.0.1 -U ecoresist -d ecoresist -v ON_ERROR_STOP=1 -f seed/reference_rules.sql
+      - name: Run schema smoke test
+        run: psql -h 127.0.0.1 -U ecoresist -d ecoresist -v ON_ERROR_STOP=1 -f tests/schema_smoke.sql
